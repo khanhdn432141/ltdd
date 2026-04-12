@@ -29,9 +29,9 @@ private val LightColorScheme = lightColorScheme(
 
 private val DarkColorScheme = darkColorScheme(
     primary = PrimaryDarkTheme,
-    onPrimary = Color(0xFF1A1A2E),
-    primaryContainer = Color(0xFF2D2B6E),
-    onPrimaryContainer = Color(0xFFCECBFF),
+    onPrimary = Color(0xFF4E2600),      // Chữ trên nền cam đậm (thay vì màu xanh tím cũ)
+    primaryContainer = Color(0xFF663D00), // Vùng chứa màu cam tối
+    onPrimaryContainer = Color(0xFFFFDDB3),
     secondary = Secondary,
     background = BackgroundDark,
     surface = SurfaceDark,
