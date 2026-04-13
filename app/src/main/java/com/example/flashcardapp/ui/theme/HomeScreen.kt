@@ -1,387 +1,186 @@
 package com.example.flashcardapp.ui.theme
 
-import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.flashcardapp.data.Deck
 import com.example.flashcardapp.viewmodel.CardViewModel
-import com.google.firebase.auth.FirebaseAuth
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     viewModel: CardViewModel,
-    onDeckClick: (Long) -> Unit,
+    onDeckClick: (Long, String) -> Unit,
     onSettingsClick: () -> Unit,
     onLogout: () -> Unit
 ) {
     val decks by viewModel.allDecks.collectAsState()
-    var showDialog by remember { mutableStateOf(false) }
+
+    // TRẠNG THÁI ĐIỀU KHIỂN DIALOG TẠO BỘ THẺ
+    var showAddDialog by remember { mutableStateOf(false) }
+    var newDeckName by remember { mutableStateOf("") }
+    var newDeckDesc by remember { mutableStateOf("") }
 
     Scaffold(
-        containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
             ExtendedFloatingActionButton(
-                onClick = { showDialog = true },
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
+                onClick = { showAddDialog = true }, // Khi nhấn sẽ hiện Dialog
+                icon = { Icon(Icons.Default.Add, null) },
                 text = { Text("Tạo bộ thẻ") },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp)
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.primary
             )
         }
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(bottom = 100.dp)
-        ) {
-            item {
-                HomeHeader(
-                    deckCount       = decks.size,
-                    onSettingsClick = onSettingsClick,
-                    onLogout        = onLogout
-                )
+
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item {
+                    HomeHeader(
+                        deckCount = decks.size,
+                        onSettingsClick = onSettingsClick,
+                        onLogout = onLogout
+                    )
+                }
+
+                if (decks.isEmpty()) {
+                    item {
+                        Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("Chưa có bộ thẻ nào. Hãy nhấn + để tạo!", color = Color.Gray)
+                        }
+                    }
+                }
+
+                items(decks) { deck ->
+                    DeckItem(
+                        deck = deck,
+                        onClick = { onDeckClick(deck.id, deck.name) },
+                        onDelete = { viewModel.deleteDeck(deck.id) }
+                    )
+                }
             }
 
-            if (decks.isEmpty()) {
-                item { EmptyState() }
-            }
-
-            items(decks, key = { it.id }) { deck ->
-                DeckItem(
-                    deck      = deck,
-                    viewModel = viewModel,
-                    onClick   = { onDeckClick(deck.id) },
-                    onDelete  = { viewModel.deleteDeck(deck) }
+            // DIALOG NHẬP THÔNG TIN BỘ THẺ MỚI
+            if (showAddDialog) {
+                AlertDialog(
+                    onDismissRequest = { showAddDialog = false },
+                    title = { Text("Tạo bộ thẻ mới", fontWeight = FontWeight.Bold) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            OutlinedTextField(
+                                value = newDeckName,
+                                onValueChange = { newDeckName = it },
+                                label = { Text("Tên bộ thẻ (Ví dụ: Tiếng Anh)") },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = newDeckDesc,
+                                onValueChange = { newDeckDesc = it },
+                                label = { Text("Mô tả ngắn") },
+                                shape = RoundedCornerShape(12.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                if (newDeckName.isNotBlank()) {
+                                    viewModel.addDeck(newDeckName.trim(), newDeckDesc.trim())
+                                    showAddDialog = false
+                                    newDeckName = ""; newDeckDesc = ""
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Tạo ngay")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showAddDialog = false }) {
+                            Text("Hủy")
+                        }
+                    }
                 )
             }
         }
     }
-
-    if (showDialog) {
-        AddDeckDialog(
-            onConfirm = { name, desc ->
-                viewModel.addDeck(name, desc)
-                showDialog = false
-            },
-            onDismiss = { showDialog = false }
-        )
-    }
 }
 
 @Composable
-fun HomeHeader(
-    deckCount: Int,
-    onSettingsClick: () -> Unit,
-    onLogout: () -> Unit
-) {
-    val currentUser = FirebaseAuth.getInstance().currentUser
-    val email = currentUser?.email ?: ""
-
+fun HomeHeader(deckCount: Int, onSettingsClick: () -> Unit, onLogout: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primary,
-                        MaterialTheme.colorScheme.primaryContainer
-                    )
-                )
-            )
-            .padding(horizontal = 24.dp, vertical = 28.dp)
+            .background(Brush.verticalGradient(
+                listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primaryContainer)
+            ))
+            .padding(24.dp)
     ) {
-        // Nút Settings + Logout góc trên phải
-        Row(
-            modifier = Modifier.align(Alignment.TopEnd),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            IconButton(
-                onClick = onLogout,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.2f))
-            ) {
-                Icon(
-                    Icons.Default.Logout,
-                    contentDescription = "Đăng xuất",
-                    tint = Color.White
-                )
-            }
-            IconButton(
-                onClick = onSettingsClick,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.2f))
-            ) {
-                Icon(
-                    Icons.Outlined.Settings,
-                    contentDescription = "Cài đặt",
-                    tint = Color.White
-                )
-            }
-        }
-
         Column {
-            Text(
-                text = "Flashcard",
-                style = MaterialTheme.typography.displayLarge.copy(fontSize = 32.sp),
-                color = MaterialTheme.colorScheme.onPrimary,
-                fontWeight = FontWeight.ExtraBold
-            )
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Học thông minh hơn mỗi ngày",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f)
-            )
-            // Hiện email đang đăng nhập
-            if (email.isNotBlank()) {
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = email,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.7f)
-                )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Flashcard", fontSize = 32.sp, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                Row {
+                    IconButton(onClick = onSettingsClick) {
+                        Icon(Icons.Default.Settings, null, tint = Color.White)
+                    }
+                    IconButton(onClick = onLogout) {
+                        Icon(Icons.Default.Logout, null, tint = Color.White)
+                    }
+                }
             }
-            Spacer(Modifier.height(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatPill(
-                    label = "$deckCount bộ thẻ",
-                    icon  = Icons.Outlined.LibraryBooks
-                )
+            Text("Học thông minh hơn mỗi ngày", color = Color.White.copy(0.8f))
+            Spacer(Modifier.height(16.dp))
+            Surface(color = Color.White.copy(0.2f), shape = RoundedCornerShape(20.dp)) {
+                Text("$deckCount bộ thẻ", color = Color.White, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
             }
         }
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StatPill(
-    label: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
-) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color.White.copy(alpha = 0.2f))
-            .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-        Text(label, color = Color.White, style = MaterialTheme.typography.labelLarge)
-    }
-}
-
-@Composable
-fun EmptyState() {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(48.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Outlined.LibraryAdd,
-                contentDescription = null,
-                modifier = Modifier.size(40.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
-        }
-        Text(
-            "Chưa có bộ thẻ nào",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            "Nhấn nút bên dưới để tạo\nbộ thẻ đầu tiên của bạn",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-    }
-}
-
-@Composable
-fun DeckItem(
-    deck: Deck,
-    viewModel: CardViewModel,
-    onClick: () -> Unit,
-    onDelete: () -> Unit
-) {
-    val totalCount by viewModel.getCardCount(deck.id).collectAsState(initial = 0)
-    val dueCount   by viewModel.getDueCardCount(deck.id).collectAsState(initial = 0)
-
+fun DeckItem(deck: Deck, onClick: () -> Unit, onDelete: () -> Unit) {
     Card(
         onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 6.dp),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        shape = RoundedCornerShape(24.dp)
     ) {
         Row(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
-                modifier = Modifier
-                    .size(52.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(MaterialTheme.colorScheme.primaryContainer),
+                modifier = Modifier.size(50.dp).background(MaterialTheme.colorScheme.primaryContainer, RoundedCornerShape(12.dp)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = deck.name.take(1).uppercase(),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
+                Text(deck.name.take(1).uppercase(), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
             }
-
-            Spacer(Modifier.width(14.dp))
-
+            Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    deck.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-                if (deck.description.isNotBlank()) {
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        deck.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                }
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MiniChip(
-                        text  = "$totalCount thẻ",
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    )
-                    if (dueCount > 0) {
-                        MiniChip(
-                            text      = "$dueCount cần ôn",
-                            color     = ColorForgot.copy(alpha = 0.15f),
-                            textColor = ColorForgot
-                        )
-                    } else {
-                        MiniChip(
-                            text      = "Đã ôn xong",
-                            color     = ColorGood.copy(alpha = 0.15f),
-                            textColor = ColorGood
-                        )
-                    }
-                }
+                Text(deck.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+                Text(deck.description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
             IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Default.DeleteOutline,
-                    contentDescription = "Xóa",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Icon(Icons.Default.DeleteOutline, null, tint = MaterialTheme.colorScheme.error)
             }
         }
     }
-}
-
-@Composable
-fun MiniChip(
-    text: String,
-    color: Color,
-    textColor: Color = MaterialTheme.colorScheme.primary
-) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(color)
-            .padding(horizontal = 10.dp, vertical = 4.dp)
-    ) {
-        Text(
-            text,
-            style = MaterialTheme.typography.labelMedium,
-            color = textColor,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
-@Composable
-fun AddDeckDialog(
-    onConfirm: (String, String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var desc by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        shape = RoundedCornerShape(24.dp),
-        title = { Text("Tạo bộ thẻ mới", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Tên bộ thẻ *") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-                OutlinedTextField(
-                    value = desc,
-                    onValueChange = { desc = it },
-                    label = { Text("Mô tả (tùy chọn)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = { if (name.isNotBlank()) onConfirm(name.trim(), desc.trim()) },
-                enabled = name.isNotBlank(),
-                shape = RoundedCornerShape(12.dp)
-            ) { Text("Tạo") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Huỷ") }
-        }
-    )
 }
