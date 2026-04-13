@@ -11,10 +11,11 @@ data class Card(
     val front: String,
     val back: String,
 
-    // SM-2 algorithm fields
-    val interval: Int = 1,
+    // Các thuộc tính bắt buộc cho thuật toán SM-2
     val repetition: Int = 0,
+    val interval: Int = 1,
     val easeFactor: Float = 2.5f,
-    val nextReviewDate: Long = System.currentTimeMillis(),
-    val createdAt: Long = System.currentTimeMillis()
+
+    val lastReview: Long = 0,
+    val nextReview: Long = 0 // Tên biến dùng để đồng bộ với dòng 49 bên trên
 )
