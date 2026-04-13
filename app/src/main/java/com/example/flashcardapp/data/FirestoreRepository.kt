@@ -1,150 +1,96 @@
 package com.example.flashcardapp.data
 
+import android.util.Log
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class FirestoreRepository {
-
-    private val db   = FirebaseFirestore.getInstance()
+    private val firestore = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
 
-    private val userId get() = auth.currentUser?.uid ?: ""
+    private val userId: String? get() = auth.currentUser?.uid
 
-    // ── Deck ──────────────────────────────────────────
+    // --- 1. PULL: Tải dữ liệu từ Cloud về máy ---
+    suspend fun pullDecksFromCloud(deckDao: DeckDao, cardDao: CardDao) {
+        val uid = userId ?: return
+        try {
+            val deckSnapshot = firestore.collection("users").document(uid)
+                .collection("decks").get().await()
 
-    suspend fun syncDeckToCloud(deck: Deck) {
-        if (userId.isBlank()) return
-        db.collection("users")
-            .document(userId)
-            .collection("decks")
-            .document(deck.id.toString())
-            .set(deck.toMap())
-            .await()
+            for (doc in deckSnapshot.documents) {
+                // Thêm try-catch nhỏ bên trong để nếu 1 card lỗi không làm văng cả app
+                try {
+                    val deck = doc.toObject(Deck::class.java) ?: continue
+                    deckDao.insertDeck(deck)
+
+                    val cardSnapshot = doc.reference.collection("cards").get().await()
+                    for (cardDoc in cardSnapshot.documents) {
+                        val card = cardDoc.toObject(Card::class.java) ?: continue
+                        cardDao.insertCard(card)
+                    }
+                } catch (e: Exception) {
+                    Log.e("Firestore", "Lỗi dòng dữ liệu cụ thể: ${e.message}")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("Firestore", "Lỗi tải dữ liệu: ${e.message}")
+        }
     }
 
-    suspend fun deleteDeckFromCloud(deckId: Long) {
-        if (userId.isBlank()) return
-        // Xóa deck
-        db.collection("users")
-            .document(userId)
-            .collection("decks")
-            .document(deckId.toString())
+    // --- 2. OBSERVE: Lắng nghe thay đổi real-time và cập nhật local DB ---
+    // FIX #7: Nhận scope từ ViewModel để launch coroutine đúng cách
+    fun observeCloudDecks(deckDao: DeckDao, cardDao: CardDao, scope: CoroutineScope) {
+        val uid = userId ?: return
+        firestore.collection("users").document(uid).collection("decks")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("Firestore", "Lỗi observe: ${e.message}")
+                    return@addSnapshotListener
+                }
+                snapshot?.documents?.forEach { doc ->
+                    val deck = doc.toObject(Deck::class.java) ?: return@forEach
+                    // FIX: Launch coroutine để ghi vào Room
+                    scope.launch(Dispatchers.IO) {
+                        deckDao.insertDeck(deck)
+                    }
+                }
+            }
+    }
+
+    // --- 3. PUSH: Đẩy dữ liệu lên Cloud ---
+    fun syncDeckToCloud(deck: Deck) {
+        val uid = userId ?: return
+        firestore.collection("users").document(uid)
+            .collection("decks").document(deck.id.toString())
+            .set(deck, SetOptions.merge())
+    }
+
+    fun syncCardToCloud(card: Card) {
+        val uid = userId ?: return
+        firestore.collection("users").document(uid)
+            .collection("decks").document(card.deckId.toString())
+            .collection("cards").document(card.id.toString())
+            .set(card, SetOptions.merge())
+    }
+
+    // --- 4. XÓA ---
+    fun deleteDeckFromCloud(deckId: String) {
+        val uid = userId ?: return
+        firestore.collection("users").document(uid)
+            .collection("decks").document(deckId).delete()
+    }
+
+    // FIX #2: Truyền đúng deckId để xóa card trong sub-collection đúng chỗ
+    fun deleteCardFromCloud(deckId: Long, cardId: Long) {
+        val uid = userId ?: return
+        firestore.collection("users").document(uid)
+            .collection("decks").document(deckId.toString())
+            .collection("cards").document(cardId.toString())
             .delete()
-            .await()
-        // Xóa toàn bộ card trong deck
-        val cards = db.collection("users")
-            .document(userId)
-            .collection("cards")
-            .whereEqualTo("deckId", deckId)
-            .get()
-            .await()
-        cards.documents.forEach { it.reference.delete().await() }
     }
-
-    suspend fun getDecksFromCloud(): List<Deck> {
-        if (userId.isBlank()) return emptyList()
-        return db.collection("users")
-            .document(userId)
-            .collection("decks")
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toDeck() }
-    }
-
-    // ── Card ──────────────────────────────────────────
-
-    suspend fun syncCardToCloud(card: Card) {
-        if (userId.isBlank()) return
-        db.collection("users")
-            .document(userId)
-            .collection("cards")
-            .document(card.id.toString())
-            .set(card.toMap())
-            .await()
-    }
-
-    suspend fun deleteCardFromCloud(cardId: Long) {
-        if (userId.isBlank()) return
-        db.collection("users")
-            .document(userId)
-            .collection("cards")
-            .document(cardId.toString())
-            .delete()
-            .await()
-    }
-
-    suspend fun getCardsFromCloud(): List<Card> {
-        if (userId.isBlank()) return emptyList()
-        return db.collection("users")
-            .document(userId)
-            .collection("cards")
-            .get()
-            .await()
-            .documents
-            .mapNotNull { it.toCard() }
-    }
-
-    // ── Pull toàn bộ dữ liệu về máy ──────────────────
-
-    suspend fun pullAllData(dao: CardDao) {
-        if (userId.isBlank()) return
-
-        val cloudDecks = getDecksFromCloud()
-        val cloudCards = getCardsFromCloud()
-
-        // Lưu decks vào local
-        cloudDecks.forEach { dao.insertDeck(it) }
-        // Lưu cards vào local
-        cloudCards.forEach { dao.insertCard(it) }
-    }
-}
-
-// ── Extension functions ───────────────────────────────
-
-fun Deck.toMap(): Map<String, Any> = mapOf(
-    "id"          to id,
-    "name"        to name,
-    "description" to description,
-    "createdAt"   to createdAt
-)
-
-fun Card.toMap(): Map<String, Any> = mapOf(
-    "id"             to id,
-    "deckId"         to deckId,
-    "front"          to front,
-    "back"           to back,
-    "interval"       to interval,
-    "repetition"     to repetition,
-    "easeFactor"     to easeFactor,
-    "nextReviewDate" to nextReviewDate,
-    "createdAt"      to createdAt
-)
-
-fun com.google.firebase.firestore.DocumentSnapshot.toDeck(): Deck? {
-    return try {
-        Deck(
-            id          = getLong("id") ?: 0L,
-            name        = getString("name") ?: "",
-            description = getString("description") ?: "",
-            createdAt   = getLong("createdAt") ?: 0L
-        )
-    } catch (e: Exception) { null }
-}
-
-fun com.google.firebase.firestore.DocumentSnapshot.toCard(): Card? {
-    return try {
-        Card(
-            id             = getLong("id") ?: 0L,
-            deckId         = getLong("deckId") ?: 0L,
-            front          = getString("front") ?: "",
-            back           = getString("back") ?: "",
-            interval       = getLong("interval")?.toInt() ?: 1,
-            repetition     = getLong("repetition")?.toInt() ?: 0,
-            easeFactor     = (getDouble("easeFactor") ?: 2.5).toFloat(),
-            nextReviewDate = getLong("nextReviewDate") ?: System.currentTimeMillis(),
-            createdAt      = getLong("createdAt") ?: System.currentTimeMillis()
-        )
-    } catch (e: Exception) { null }
 }
