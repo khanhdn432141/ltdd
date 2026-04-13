@@ -1,111 +1,125 @@
 package com.example.flashcardapp
 
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.example.flashcardapp.ui.theme.AddCardScreen
-import com.example.flashcardapp.ui.theme.AuthScreen
-import com.example.flashcardapp.ui.theme.DeckScreen
-import com.example.flashcardapp.ui.theme.HomeScreen
-import com.example.flashcardapp.ui.theme.SettingsScreen
-import com.example.flashcardapp.ui.theme.StatsScreen
-import com.example.flashcardapp.ui.theme.StudyScreen
+import androidx.navigation.navArgument
+import androidx.navigation.NavType
 import com.example.flashcardapp.viewmodel.CardViewModel
 import com.google.firebase.auth.FirebaseAuth
-
+// Import các màn hình giao diện
+import com.example.flashcardapp.ui.theme.*
+import androidx.compose.runtime.remember
 @Composable
 fun NavGraph(
     navController: NavHostController,
     viewModel: CardViewModel
 ) {
-    val decks by viewModel.allDecks.collectAsState()
-
-    NavHost(navController = navController, startDestination = "auth") {
-
+    // Kiểm tra trạng thái đăng nhập để chọn màn hình khởi đầu
+//    val startDestination = if (FirebaseAuth.getInstance().currentUser != null) "home" else "auth"
+    val currentUser = remember { FirebaseAuth.getInstance().currentUser }
+    val startDestination = if (currentUser != null) "home" else "auth"
+    NavHost(
+        navController = navController,
+        startDestination = startDestination
+    ) {
+        // Màn hình Đăng nhập
+        // PHẢI MỞ COMMENT CHO MÀN HÌNH AUTH
         composable("auth") {
             AuthScreen(
-                viewModel     = viewModel,
+                viewModel = viewModel,
                 onAuthSuccess = {
                     navController.navigate("home") {
-                        popUpTo(0) { inclusive = true }
-                        launchSingleTop = true
+                        popUpTo("auth") { inclusive = true }
                     }
                 }
             )
         }
 
+        // PHẢI MỞ COMMENT CHO MÀN HÌNH HOME
         composable("home") {
             HomeScreen(
-                viewModel       = viewModel,
-                onDeckClick     = { deckId -> navController.navigate("deck/$deckId") },
+                viewModel = viewModel,
+                onDeckClick = { id, name ->
+                    navController.navigate("deck/$id/$name")
+                },
                 onSettingsClick = { navController.navigate("settings") },
-                onLogout        = {
+                onLogout = {
                     FirebaseAuth.getInstance().signOut()
                     navController.navigate("auth") {
                         popUpTo(0) { inclusive = true }
-                        launchSingleTop = true
                     }
                 }
             )
         }
 
-        composable("deck/{deckId}") { backStack ->
-            val deckId   = backStack.arguments?.getString("deckId")
-                ?.toLongOrNull() ?: return@composable
-            val deckName = decks.find { it.id == deckId }?.name ?: "Bộ thẻ"
+        // Màn hình Settings (Thêm vào nếu chưa có)
+        composable("settings") {
+            SettingsScreen(onBack = { navController.popBackStack() })
+
+        }
+        // Màn hình Chi tiết bộ thẻ
+        composable(
+            route = "deck/{deckId}/{deckName}",
+            arguments = listOf(
+                navArgument("deckId") { type = NavType.LongType },
+                navArgument("deckName") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val deckId = backStackEntry.arguments?.getLong("deckId") ?: 0L
+            val deckName = backStackEntry.arguments?.getString("deckName") ?: "Bộ thẻ"
 
             DeckScreen(
-                deckId       = deckId,
-                deckName     = deckName,
-                viewModel    = viewModel,
+                deckId = deckId,
+                deckName = deckName,
+                viewModel = viewModel,
                 onStudyClick = { navController.navigate("study/$deckId") },
-                onAddCard    = { navController.navigate("addcard/$deckId") },
+                onAddCard = { navController.navigate("add_card/$deckId") },
                 onStatsClick = { navController.navigate("stats/$deckId") },
-                onBack       = { navController.popBackStack() }
-            )
-        }
-
-        composable("study/{deckId}") { backStack ->
-            val deckId   = backStack.arguments?.getString("deckId")
-                ?.toLongOrNull() ?: return@composable
-            val deckName = decks.find { it.id == deckId }?.name ?: "Ôn tập"
-
-            StudyScreen(
-                deckId    = deckId,
-                deckName  = deckName,
-                viewModel = viewModel,
-                onBack    = { navController.popBackStack() }
-            )
-        }
-
-        composable("addcard/{deckId}") { backStack ->
-            val deckId = backStack.arguments?.getString("deckId")
-                ?.toLongOrNull() ?: return@composable
-
-            AddCardScreen(
-                deckId    = deckId,
-                viewModel = viewModel,
-                onBack    = { navController.popBackStack() }
-            )
-        }
-
-        composable("settings") {
-            SettingsScreen(
                 onBack = { navController.popBackStack() }
             )
         }
 
-        composable("stats/{deckId}") { backStack ->
-            val deckId   = backStack.arguments?.getString("deckId")
-                ?.toLongOrNull() ?: return@composable
-            val deckName = decks.find { it.id == deckId }?.name ?: "Thống kê"
+        // Màn hình Thêm thẻ mới
+        composable("add_card/{deckId}") { backStackEntry ->
+            val deckId = backStackEntry.arguments?.getString("deckId")?.toLongOrNull() ?: 0L
+            AddCardScreen(
+                deckId = deckId,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        // Màn hình Ôn tập (Study)
+        composable("study/{deckId}") { backStackEntry ->
+            val deckId = backStackEntry.arguments?.getString("deckId")?.toLongOrNull() ?: 0L
+            StudyScreen(
+                deckId = deckId,
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+//        // Màn hình Thống kê
+//        composable("stats/{deckId}") {
+//            StatsScreen(
+//                viewModel = viewModel,
+//                onBack = { navController.popBackStack() }
+//            )
+//        }
+        // Màn hình Thống kê - Fix lỗi đỏ deckId
+        composable(
+            route = "stats/{deckId}",
+            arguments = listOf(navArgument("deckId") { type = NavType.LongType })
+        ) { backStackEntry ->
+            // Lấy deckId từ đường dẫn (URL) của route
+            val deckId = backStackEntry.arguments?.getLong("deckId") ?: 0L
 
             StatsScreen(
-                deckId    = deckId,
-                deckName  = deckName,
+                deckId = deckId, // Truyền deckId vào màn hình
                 viewModel = viewModel,
-                onBack    = { navController.popBackStack() }
+                onBack = { navController.popBackStack() }
             )
         }
     }
