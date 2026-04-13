@@ -25,11 +25,12 @@ import androidx.work.WorkManager
 import com.example.flashcardapp.worker.ReminderPrefs
 import com.example.flashcardapp.worker.ReminderScheduler
 import com.example.flashcardapp.worker.ReminderWorker
-
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
-
+    val scrollState = rememberScrollState()
     var reminderEnabled by remember { mutableStateOf(ReminderPrefs.isEnabled(context)) }
     var selectedHour    by remember { mutableStateOf(ReminderPrefs.getHour(context)) }
     var selectedMinute  by remember { mutableStateOf(ReminderPrefs.getMinute(context)) }
@@ -80,7 +81,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(scrollState),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Spacer(Modifier.height(4.dp))
