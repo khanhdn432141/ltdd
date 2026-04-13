@@ -29,7 +29,7 @@ fun StatsScreen(
 ) {
     val cards by viewModel.getCardsByDeck(deckId).collectAsState(initial = emptyList())
     val dueCount by viewModel.getDueCardCount(deckId).collectAsState(initial = 0)
-
+    // --- LOGIC TÍNH TOÁN ---
     val totalCards = cards.size
     val masteredCards = cards.count { it.repetition >= 3 }
     val learningCards = cards.count { it.repetition in 1..2 }
