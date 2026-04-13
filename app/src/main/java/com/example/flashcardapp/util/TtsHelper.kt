@@ -17,22 +17,37 @@ class TtsHelper(context: Context) {
         initTts()
     }
 
-    private fun initTts() {
-        tts = TextToSpeech(appContext) { status ->
-            android.util.Log.d("TTS", "onInit called, status=$status")
-            if (status == TextToSpeech.SUCCESS) {
-                tts?.language = Locale.forLanguageTag("vi-VN")
-                android.util.Log.d("TTS", "Init OK")
+//    private fun initTts() {
+//        tts = TextToSpeech(appContext) { status ->
+//            android.util.Log.d("TTS", "onInit called, status=$status")
+//            if (status == TextToSpeech.SUCCESS) {
+//                tts?.language = Locale.forLanguageTag("vi-VN")
+//                android.util.Log.d("TTS", "Init OK")
+//                isReady = true
+//                pendingText?.let {
+//                    tts?.speak(it, TextToSpeech.QUEUE_FLUSH, null, "tts_1")
+//                }
+//                pendingText = null
+//            } else {
+//                android.util.Log.e("TTS", "Init FAILED status=$status")
+//            }
+//        }
+//    }
+private fun initTts() {
+    tts = TextToSpeech(appContext) { status ->
+        if (status == TextToSpeech.SUCCESS) {
+            val result = tts?.setLanguage(Locale("vi", "VN"))
+            if (result != TextToSpeech.LANG_MISSING_DATA && result != TextToSpeech.LANG_NOT_SUPPORTED) {
                 isReady = true
+                // Quan trọng: Đọc ngay văn bản đang chờ nếu có
                 pendingText?.let {
-                    tts?.speak(it, TextToSpeech.QUEUE_FLUSH, null, "tts_1")
+                    speak(it)
+                    pendingText = null
                 }
-                pendingText = null
-            } else {
-                android.util.Log.e("TTS", "Init FAILED status=$status")
             }
         }
     }
+}
 
     fun speak(text: String) {
         android.util.Log.d("TTS", "speak() isReady=$isReady text=$text")
