@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 data class Deck(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
-    val name: String,
+    val name: String ="",
     val description: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )

@@ -5,23 +5,18 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface CardDao {
+    @Query("SELECT * FROM cards")
+    fun getAllCards(): Flow<List<Card>>
 
-    // ── Deck ──────────────────────────────────────────
+    // THÊM HÀM NÀY ĐỂ FIX LỖI Ở CARDVIEWMODEL
+    @Query("SELECT * FROM cards WHERE id = :cardId")
+    fun getCardById(cardId: Long): Flow<Card?>
+
+    @Query("SELECT * FROM cards WHERE deckId = :deckId")
+    fun getCardsByDeckId(deckId: Long): Flow<List<Card>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertDeck(deck: Deck): Long
-
-    @Delete
-    suspend fun deleteDeck(deck: Deck)
-
-    @Query("SELECT * FROM decks ORDER BY createdAt DESC")
-    fun getAllDecks(): Flow<List<Deck>>
-
-    @Query("SELECT * FROM decks WHERE id = :id")
-    suspend fun getDeckById(id: Long): Deck?
-
-    // ── Card ──────────────────────────────────────────
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertCard(card: Card)
+    suspend fun insertCard(card: Card): Long
 
     @Update
     suspend fun updateCard(card: Card)
@@ -29,18 +24,11 @@ interface CardDao {
     @Delete
     suspend fun deleteCard(card: Card)
 
-    @Query("SELECT * FROM cards WHERE deckId = :deckId ORDER BY createdAt DESC")
-    fun getCardsByDeck(deckId: Long): Flow<List<Card>>
+    @Query("DELETE FROM cards WHERE deckId = :deckId")
+    suspend fun deleteCardsByDeckId(deckId: Long)
 
-    @Query("SELECT * FROM cards WHERE deckId = :deckId AND nextReviewDate <= :now ORDER BY nextReviewDate ASC")
-    suspend fun getDueCards(deckId: Long, now: Long = System.currentTimeMillis()): List<Card>
-
-    @Query("SELECT COUNT(*) FROM cards WHERE deckId = :deckId")
-    fun getCardCount(deckId: Long): Flow<Int>
-
-    @Query("SELECT COUNT(*) FROM cards WHERE deckId = :deckId AND nextReviewDate <= :now")
-    fun getDueCardCount(deckId: Long, now: Long = System.currentTimeMillis()): Flow<Int>
-
-    @Query("SELECT COUNT(*) FROM cards WHERE nextReviewDate <= :now")
-    suspend fun getAllDueCardsCount(now: Long): Int
-}
+    @Query("SELECT COUNT(*) FROM cards WHERE deckId = :deckId AND nextReview <= :now")
+    fun getDueCardCount(deckId: Long, now: Long): Flow<Int>
+    @Query("SELECT COUNT(*) FROM cards WHERE nextReview <= :now")
+    fun getTotalDueCardCount(now: Long): Flow<Int>
+}// Note: EOF marker above closes the file; actual append below:
