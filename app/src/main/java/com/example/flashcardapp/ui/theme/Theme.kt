@@ -1,68 +1,64 @@
-package com.example.flashcardapp.ui.theme.theme
+package com.example.flashcardapp.ui.theme
 
 import android.app.Activity
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
-import com.example.flashcardapp.ui.theme.*
 
-private val LightColorScheme = lightColorScheme(
-    primary = Primary,
-    onPrimary = Color(0xFFFFFFFF),
-    primaryContainer = PrimaryLight,
-    onPrimaryContainer = PrimaryDark,
-    secondary = Secondary,
-    background = Background,
-    surface = Surface,
-    surfaceVariant = SurfaceVariant,
-    onBackground = Gray900,
-    onSurface = Gray900,
-    onSurfaceVariant = Gray700,
-    outline = Gray300,
-    error = ColorForgot
-)
+// 1. Định nghĩa bảng màu Tươi & Nhẹ Nhàng theo tham khảo
+private val FreshLightColorScheme = lightColorScheme(
+    // Xanh Cyan sáng nhẹ - cho các nút hoặc header
+    primary = Color(0xFF1ECBCF),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFE0F7F9),
 
-private val DarkColorScheme = darkColorScheme(
-    primary = PrimaryDarkTheme,
-    onPrimary = Color(0xFF4E2600),     
-    primaryContainer = Color(0xFF663D00), // Vùng chứa màu cam tối
-    onPrimaryContainer = Color(0xFFFFDDB3),
-    secondary = Secondary,
-    background = BackgroundDark,
-    surface = SurfaceDark,
-    surfaceVariant = SurfaceVariantDark,
-    onBackground = Color(0xFFE8E8FF),
-    onSurface = Color(0xFFE8E8FF),
-    onSurfaceVariant = Color(0xFFB0B0CC),
-    outline = Color(0xFF3A3A5C),
-    error = ColorForgot
+    // Tím sáng - tạo điểm nhấn hiện đại
+    secondary = Color(0xFFAA7FF9),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFF1EAFF),
+
+    // Nền trắng tinh khôi, cực kỳ tươi sáng
+    background = Color(0xFFFFFFFF),
+    surface = Color.White,
+    onBackground = Color(0xFF1D2939),
+    onSurface = Color(0xFF1D2939),
+
+    // Màu cho các ô nhập liệu hoặc viền thẻ
+    surfaceVariant = Color(0xFFF2F4F7),
+    onSurfaceVariant = Color(0xFF667085),
+
+    outline = Color(0xFFD0D5DD)
 )
 
 @Composable
 fun FlashcardAppTheme(
-    darkTheme: Boolean = true,
+    darkTheme: Boolean = false, // Luôn tắt chế độ tối
+    dynamicColor: Boolean = false, // Tắt màu hệ thống để giữ đúng màu Cyan-Purple
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
-    val view = LocalView.current
+    // Sử dụng bảng màu tươi nhẹ vừa định nghĩa
+    val colorScheme = FreshLightColorScheme
 
+    val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = colorScheme.background.toArgb()
-            WindowCompat.getInsetsController(window, view)
-                .isAppearanceLightStatusBars = !darkTheme
+            // Đặt màu thanh trạng thái tiệp màu với app
+            window.statusBarColor = colorScheme.primary.toArgb()
+
+            // Ép icon thanh trạng thái luôn màu tối (đen) để nổi bật trên nền sáng
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = true
         }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography,
+        typography = Typography, // Đảm bảo Typography.kt của bạn đã được cấu hình
         content = content
     )
 }
